@@ -2,6 +2,12 @@
 
 BudgetBuddy is a responsive personal finance dashboard for tracking income and expenses, setting category budgets, and analyzing monthly spending patterns.
 
+## Live Links
+
+- Live app: https://rabin-portfolio-rust.vercel.app/budgetbuddy/
+- Portfolio project page: https://rabin-portfolio-rust.vercel.app/
+- Portfolio repo: https://github.com/rabinregmi188/rabin-portfolio
+
 ## Features
 
 - Add income and expense transactions with categories and dates
