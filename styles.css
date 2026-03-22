@@ -154,6 +154,78 @@ h1 {
   gap: 16px;
 }
 
+.about-panel {
+  overflow: hidden;
+}
+
+.about-grid {
+  display: grid;
+  grid-template-columns: 1.3fr 0.9fr;
+  gap: 28px;
+  align-items: start;
+}
+
+.about-copy h2 {
+  margin: 0 0 16px;
+  font-size: clamp(1.9rem, 4vw, 3rem);
+}
+
+.about-text {
+  display: grid;
+  gap: 14px;
+  color: var(--muted);
+  line-height: 1.75;
+}
+
+.about-text p {
+  margin: 0;
+}
+
+.about-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.about-side {
+  display: grid;
+  gap: 14px;
+}
+
+.about-card,
+.mini-stat {
+  border-radius: 22px;
+  padding: 18px;
+  background: rgba(15, 23, 42, 0.75);
+  border: 1px solid rgba(251, 191, 36, 0.12);
+}
+
+.about-card strong,
+.mini-stat strong {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 1rem;
+}
+
+.about-card p,
+.mini-stat span {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.65;
+}
+
+.about-icon {
+  display: inline-flex;
+  font-size: 1.6rem;
+  margin-bottom: 10px;
+}
+
+.about-mini-stats {
+  display: grid;
+  gap: 12px;
+}
+
 .summary-card {
   padding: 20px;
   border-radius: 24px;
@@ -354,6 +426,7 @@ th {
 
 @media (max-width: 960px) {
   .hero,
+  .about-grid,
   .workspace-grid,
   .insights-grid,
   .summary-grid {
