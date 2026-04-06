@@ -3,11 +3,13 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0f172a" />
     <title>BudgetBuddy</title>
     <meta
       name="description"
       content="BudgetBuddy is a personal finance dashboard for tracking expenses, setting monthly budgets, and understanding spending patterns."
     />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💰</text></svg>" />
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
@@ -108,19 +110,19 @@
         </section>
 
         <section class="summary-grid" aria-label="Financial summary">
-          <article class="summary-card">
+          <article class="summary-card summary-card--income">
             <span>Income</span>
             <strong id="income-total">$0</strong>
           </article>
-          <article class="summary-card">
+          <article class="summary-card summary-card--expense">
             <span>Expenses</span>
             <strong id="expense-total">$0</strong>
           </article>
-          <article class="summary-card">
+          <article id="balance-card" class="summary-card summary-card--balance-positive">
             <span>Balance</span>
             <strong id="balance-total">$0</strong>
           </article>
-          <article class="summary-card">
+          <article class="summary-card summary-card--budget">
             <span>Budget Used</span>
             <strong id="budget-usage">0%</strong>
           </article>
@@ -146,7 +148,7 @@
               </label>
               <label>
                 <span>Amount</span>
-                <input id="amount" type="number" min="0" step="0.01" placeholder="45.50" required />
+                <input id="amount" type="number" min="0.01" step="0.01" placeholder="45.50" required />
               </label>
               <label>
                 <span>Type</span>
@@ -207,16 +209,18 @@
               <p class="panel-label">Transaction history</p>
               <h2>Recent activity</h2>
             </div>
+            <input id="search-transactions" type="text" placeholder="Search transactions..." class="search-input" />
           </div>
           <div class="table-wrap">
             <table>
+              <caption class="sr-only">Transaction history filtered by month</caption>
               <thead>
                 <tr>
-                  <th>Description</th>
-                  <th>Category</th>
+                  <th data-sort="description">Description</th>
+                  <th data-sort="category">Category</th>
                   <th>Type</th>
-                  <th>Date</th>
-                  <th>Amount</th>
+                  <th data-sort="date">Date</th>
+                  <th data-sort="amount">Amount</th>
                   <th></th>
                 </tr>
               </thead>
@@ -225,6 +229,59 @@
           </div>
         </section>
       </main>
+
+      <footer class="site-footer">
+        <p>Built by <a href="https://rabin-portfolio-rust.vercel.app/" target="_blank" rel="noopener noreferrer">Rabin Regmi</a></p>
+        <p>BudgetBuddy &mdash; Personal Finance Dashboard</p>
+      </footer>
+    </div>
+
+    <div id="toast-container" class="toast-container" aria-live="polite"></div>
+
+    <div id="edit-overlay" class="confirm-overlay" hidden>
+      <div class="confirm-dialog edit-dialog">
+        <h3>Edit Transaction</h3>
+        <form id="edit-form" class="transaction-form edit-form-grid">
+          <input id="edit-id" type="hidden" />
+          <label>
+            <span>Description</span>
+            <input id="edit-description" type="text" maxlength="60" required />
+          </label>
+          <label>
+            <span>Amount</span>
+            <input id="edit-amount" type="number" min="0.01" step="0.01" required />
+          </label>
+          <label>
+            <span>Type</span>
+            <select id="edit-type">
+              <option value="expense">Expense</option>
+              <option value="income">Income</option>
+            </select>
+          </label>
+          <label>
+            <span>Category</span>
+            <select id="edit-category"></select>
+          </label>
+          <label>
+            <span>Date</span>
+            <input id="edit-date" type="date" required />
+          </label>
+          <div class="confirm-actions edit-actions">
+            <button type="button" id="edit-cancel" class="btn btn-ghost">Cancel</button>
+            <button type="submit" class="btn btn-primary">Save Changes</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div id="confirm-overlay" class="confirm-overlay" hidden>
+      <div class="confirm-dialog">
+        <p id="confirm-message"></p>
+        <div class="confirm-actions">
+          <button id="confirm-cancel" class="btn btn-ghost">Cancel</button>
+          <button id="confirm-ok" class="btn btn-primary">Confirm</button>
+        </div>
+      </div>
     </div>
 
     <script src="./app.js"></script>

@@ -2,6 +2,7 @@ const STORAGE_KEY = "budgetbuddy.v1";
 const categories = ["Housing", "Food", "Transport", "Utilities", "Health", "Entertainment", "Other"];
 
 const state = loadState();
+const ui = { searchQuery: "", sortColumn: null, sortDirection: "asc" };
 
 const elements = {
   form: document.getElementById("transaction-form"),
@@ -22,12 +23,17 @@ const elements = {
   expenseTotal: document.getElementById("expense-total"),
   balanceTotal: document.getElementById("balance-total"),
   budgetUsage: document.getElementById("budget-usage"),
+  editOverlay: document.getElementById("edit-overlay"),
+  editForm: document.getElementById("edit-form"),
+  editCancel: document.getElementById("edit-cancel"),
+  searchInput: document.getElementById("search-transactions"),
 };
 
 init();
 
 function init() {
   buildCategoryOptions();
+  buildEditCategoryOptions();
   buildBudgetInputs();
   const defaultMonth = currentMonth();
   state.selectedMonth = state.selectedMonth || defaultMonth;
@@ -42,23 +48,65 @@ function bindEvents() {
   elements.saveBudgets.addEventListener("click", handleBudgetSave);
   elements.monthFilter.addEventListener("change", (event) => {
     state.selectedMonth = event.target.value;
+    document.getElementById("date").value = `${state.selectedMonth}-01`;
     saveState();
     render();
   });
   elements.seedDemo.addEventListener("click", seedDemoData);
   elements.exportData.addEventListener("click", exportCsv);
   elements.resetData.addEventListener("click", resetAllData);
-  elements.rows.addEventListener("click", (event) => {
+  elements.editForm.addEventListener("submit", handleEditSubmit);
+  elements.editCancel.addEventListener("click", () => { elements.editOverlay.hidden = true; });
+
+  let searchTimer;
+  elements.searchInput.addEventListener("input", (event) => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => {
+      ui.searchQuery = event.target.value.trim().toLowerCase();
+      render();
+    }, 200);
+  });
+
+  document.querySelectorAll("th[data-sort]").forEach((th) => {
+    th.addEventListener("click", () => {
+      const col = th.dataset.sort;
+      if (ui.sortColumn === col) {
+        ui.sortDirection = ui.sortDirection === "asc" ? "desc" : "asc";
+      } else {
+        ui.sortColumn = col;
+        ui.sortDirection = "asc";
+      }
+      document.querySelectorAll("th[data-sort]").forEach((h) => h.classList.remove("sort-asc", "sort-desc"));
+      th.classList.add(ui.sortDirection === "asc" ? "sort-asc" : "sort-desc");
+      render();
+    });
+  });
+
+  elements.rows.addEventListener("click", async (event) => {
+    const editBtn = event.target.closest("[data-edit-id]");
+    if (editBtn) {
+      openEditModal(editBtn.dataset.editId);
+      return;
+    }
     const button = event.target.closest("[data-id]");
     if (!button) return;
+    const confirmed = await showConfirm("Delete this transaction?");
+    if (!confirmed) return;
     state.transactions = state.transactions.filter((tx) => tx.id !== button.dataset.id);
     saveState();
     render();
+    showToast("Transaction deleted");
   });
 }
 
 function buildCategoryOptions() {
   elements.categorySelect.innerHTML = categories
+    .map((category) => `<option value="${category}">${category}</option>`)
+    .join("");
+}
+
+function buildEditCategoryOptions() {
+  document.getElementById("edit-category").innerHTML = categories
     .map((category) => `<option value="${category}">${category}</option>`)
     .join("");
 }
@@ -89,13 +137,14 @@ function handleTransactionSubmit(event) {
     date: document.getElementById("date").value,
   };
 
-  if (!transaction.description || !transaction.amount || !transaction.date) return;
+  if (!transaction.description || transaction.amount <= 0 || !transaction.date) return;
 
   state.transactions.unshift(transaction);
   saveState();
   elements.form.reset();
   document.getElementById("date").value = `${state.selectedMonth}-01`;
   render();
+  showToast("Transaction added");
 }
 
 function handleBudgetSave() {
@@ -107,6 +156,7 @@ function handleBudgetSave() {
   });
   saveState();
   render();
+  showToast("Budgets saved");
 }
 
 function seedDemoData() {
@@ -130,10 +180,14 @@ function seedDemoData() {
   buildBudgetInputs();
   saveState();
   render();
+  showToast("Demo data loaded");
 }
 
 function exportCsv() {
-  if (!state.transactions.length) return;
+  if (!state.transactions.length) {
+    showToast("No transactions to export", "error");
+    return;
+  }
   const header = ["description", "category", "type", "date", "amount"];
   const rows = state.transactions.map((tx) =>
     [tx.description, tx.category, tx.type, tx.date, tx.amount].map(escapeCsvCell).join(",")
@@ -144,19 +198,69 @@ function exportCsv() {
   link.href = URL.createObjectURL(blob);
   link.download = `budgetbuddy-${state.selectedMonth}.csv`;
   link.click();
+  showToast("CSV exported");
 }
 
-function resetAllData() {
+async function resetAllData() {
+  const confirmed = await showConfirm("Delete all transactions and budgets? This cannot be undone.");
+  if (!confirmed) return;
   state.transactions = [];
   state.budgets = defaultBudgets();
   saveState();
   buildBudgetInputs();
   render();
+  showToast("All data cleared");
+}
+
+function openEditModal(txId) {
+  const tx = state.transactions.find((t) => t.id === txId);
+  if (!tx) return;
+  document.getElementById("edit-id").value = tx.id;
+  document.getElementById("edit-description").value = tx.description;
+  document.getElementById("edit-amount").value = tx.amount;
+  document.getElementById("edit-type").value = tx.type;
+  document.getElementById("edit-category").value = tx.category;
+  document.getElementById("edit-date").value = tx.date;
+  elements.editOverlay.hidden = false;
+}
+
+function handleEditSubmit(event) {
+  event.preventDefault();
+  const id = document.getElementById("edit-id").value;
+  const tx = state.transactions.find((t) => t.id === id);
+  if (!tx) return;
+  tx.description = document.getElementById("edit-description").value.trim();
+  tx.amount = Number(document.getElementById("edit-amount").value);
+  tx.type = document.getElementById("edit-type").value;
+  tx.category = document.getElementById("edit-category").value;
+  tx.date = document.getElementById("edit-date").value;
+  saveState();
+  render();
+  elements.editOverlay.hidden = true;
+  showToast("Transaction updated");
 }
 
 function render() {
-  const filteredTransactions = state.transactions.filter((tx) => tx.date.startsWith(state.selectedMonth));
-  const totals = filteredTransactions.reduce(
+  const monthTransactions = state.transactions.filter((tx) => tx.date.startsWith(state.selectedMonth));
+
+  let filteredTransactions = monthTransactions;
+
+  if (ui.searchQuery) {
+    filteredTransactions = filteredTransactions.filter(
+      (tx) => tx.description.toLowerCase().includes(ui.searchQuery) || tx.category.toLowerCase().includes(ui.searchQuery)
+    );
+  }
+
+  if (ui.sortColumn) {
+    const dir = ui.sortDirection === "asc" ? 1 : -1;
+    filteredTransactions = [...filteredTransactions].sort((a, b) => {
+      const av = a[ui.sortColumn], bv = b[ui.sortColumn];
+      if (typeof av === "number") return (av - bv) * dir;
+      return String(av).localeCompare(String(bv)) * dir;
+    });
+  }
+
+  const totals = monthTransactions.reduce(
     (acc, tx) => {
       if (tx.type === "income") acc.income += tx.amount;
       else acc.expense += tx.amount;
@@ -168,7 +272,7 @@ function render() {
   const balance = totals.income - totals.expense;
   const spendingByCategory = categories.map((category) => ({
     category,
-    amount: filteredTransactions
+    amount: monthTransactions
       .filter((tx) => tx.type === "expense" && tx.category === category)
       .reduce((sum, tx) => sum + tx.amount, 0),
   }));
@@ -181,6 +285,9 @@ function render() {
   elements.incomeTotal.textContent = formatCurrency(totals.income);
   elements.expenseTotal.textContent = formatCurrency(totals.expense);
   elements.balanceTotal.textContent = formatCurrency(balance);
+
+  const balanceCard = document.getElementById("balance-card");
+  balanceCard.className = `summary-card ${balance >= 0 ? "summary-card--balance-positive" : "summary-card--balance-negative"}`;
   elements.budgetUsage.textContent = `${Math.round(budgetUsed)}%`;
   elements.heroExpense.textContent = formatCurrency(totals.expense);
   elements.heroRemaining.textContent = formatCurrency(Math.max(budgetRemaining, 0));
@@ -219,7 +326,7 @@ function renderBudgetProgress(spendingByCategory) {
       const spent = spendingByCategory.find((item) => item.category === category)?.amount || 0;
       const budget = Number(state.budgets[category] || 0);
       if (!budget && !spent) return "";
-      const percent = budget ? Math.min(140, (spent / budget) * 100) : spent > 0 ? 140 : 0;
+      const percent = budget ? Math.min(140, (spent / budget) * 100) : spent > 0 ? 100 : 0;
       const remaining = budget - spent;
       return `
         <div class="progress-card">
@@ -249,7 +356,7 @@ function renderTransactions(transactions) {
               <td><span class="type-pill type-${tx.type}">${tx.type}</span></td>
               <td>${tx.date}</td>
               <td>${formatCurrency(tx.amount)}</td>
-              <td><button class="delete-btn" data-id="${tx.id}">Delete</button></td>
+              <td><button class="edit-btn" data-edit-id="${tx.id}">Edit</button> <button class="delete-btn" data-id="${tx.id}">Delete</button></td>
             </tr>
           `
         )
@@ -258,7 +365,13 @@ function renderTransactions(transactions) {
 }
 
 function loadState() {
-  const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+  let saved = {};
+  try {
+    saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+  } catch {
+    localStorage.removeItem(STORAGE_KEY);
+    setTimeout(() => showToast("Saved data was corrupted and has been reset", "error"), 500);
+  }
   return {
     transactions: saved.transactions || [],
     budgets: { ...defaultBudgets(), ...(saved.budgets || {}) },
@@ -296,4 +409,38 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
+}
+
+function showToast(message, type = "success", duration = 2800) {
+  const container = document.getElementById("toast-container");
+  const toast = document.createElement("div");
+  toast.className = `toast toast-${type}`;
+  toast.textContent = message;
+  toast.style.animationDuration = "0.3s, 0.4s";
+  toast.style.animationDelay = `0s, ${duration}ms`;
+  container.appendChild(toast);
+  setTimeout(() => toast.remove(), duration + 500);
+}
+
+function showConfirm(message) {
+  return new Promise((resolve) => {
+    const overlay = document.getElementById("confirm-overlay");
+    const msg = document.getElementById("confirm-message");
+    const okBtn = document.getElementById("confirm-ok");
+    const cancelBtn = document.getElementById("confirm-cancel");
+    msg.textContent = message;
+    overlay.hidden = false;
+
+    function cleanup(result) {
+      overlay.hidden = true;
+      okBtn.removeEventListener("click", onOk);
+      cancelBtn.removeEventListener("click", onCancel);
+      resolve(result);
+    }
+    function onOk() { cleanup(true); }
+    function onCancel() { cleanup(false); }
+
+    okBtn.addEventListener("click", onOk);
+    cancelBtn.addEventListener("click", onCancel);
+  });
 }
